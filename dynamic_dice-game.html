@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Dice Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-6xl">
+        <h1 class="text-2xl font-bold mb-4">Dynamic Dice Game</h1>
+        <div class="flex justify-between mb-4">
+            <button id="toggleButton" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-1/2 mr-2">Start Rolling</button>
+            <button id="startOverButton" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 w-1/2 ml-2">Start Over</button>
+        </div>
+        <div id="totalRolls" class="text-xl font-bold mb-4">Total Rolls: 0</div>
+        
+        <div id="uniformity" class="mb-8">
+            <h2 class="text-xl font-bold mb-2">Uniformity Analysis (Last 10,000 Rolls)</h2>
+            <div id="dieAnalysis" class="space-y-4"></div>
+        </div>
+
+        <div id="results" class="mb-8">
+            <h2 class="text-xl font-bold mb-2">Roll Results (Last 10,000 Rolls)</h2>
+            <canvas id="resultsChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const toggleButton = document.getElementById('toggleButton');
+        const startOverButton = document.getElementById('startOverButton');
+        const totalRollsDiv = document.getElementById('totalRolls');
+        const dieAnalysisDiv = document.getElementById('dieAnalysis');
+        let dieCharts = [];
+        let resultsChart;
+        let isRolling = false;
+        let rollInterval;
+        let rollResults = new Array(10000).fill(null);
+        let rollIndex = 0;
+        let dieFrequency = [new Array(6).fill(0), new Array(6).fill(0), new Array(6).fill(0)];
+        let resultFrequency = {};
+        let totalRolls = 0;
+        let updateCounter = 0;
+
+        function createDieAnalysisTable(dieNumber) {
+            const div = document.createElement('div');
+            div.className = 'bg-white p-4 rounded shadow';
+            
+            const table = document.createElement('table');
+            table.className = 'min-w-full bg-white';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th class="px-4 py-2 border" colspan="4">Die ${dieNumber}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="border p-2 align-top" rowspan="7">
+                            <table class="w-full">
+                                <thead>
+                                    <tr>
+                                        <th class="px-2 py-1 border">Number</th>
+                                        <th class="px-2 py-1 border">Frequency</th>
+                                        <th class="px-2 py-1 border">Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dieBody${dieNumber}">
+                                </tbody>
+                            </table>
+                        </td>
+                        <td class="border p-2" colspan="3" height="300">
+                            <canvas id="dieChart${dieNumber}"></canvas>
+                        </td>
+                    </tr>
+                </tbody>
+            `;
+            
+            div.appendChild(table);
+            return div;
+        }
+
+        function updateDieTable(dieNumber) {
+            const tbody = document.getElementById(`dieBody${dieNumber}`);
+            const frequency = dieFrequency[dieNumber - 1];
+            const totalDieRolls = frequency.reduce((a, b) => a + b, 0);
+            
+            tbody.innerHTML = frequency.map((freq, index) => `
+                <tr>
+                    <td class="px-2 py-1 border">${index + 1}</td>
+                    <td class="px-2 py-1 border">${freq}</td>
+                    <td class="px-2 py-1 border">${((freq / totalDieRolls) * 100).toFixed(2)}%</td>
+                </tr>
+            `).join('');
+        }
+
+        function createDieChart(canvasId, dieNumber) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['1', '2', '3', '4', '5', '6'],
+                    datasets: [{
+                        label: 'Frequency Rate',
+                        data: [0, 0, 0, 0, 0, 0],
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 20,  // Zoom in to 20%
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: `Die ${dieNumber} Frequency Rate`
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDieChart(chart, frequency) {
+            const totalDieRolls = frequency.reduce((a, b) => a + b, 0);
+            chart.data.datasets[0].data = frequency.map(freq => (freq / totalDieRolls * 100));
+            chart.update();
+        }
+
+        function createResultsChart() {
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Frequency',
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: [],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateResultsChart() {
+            const sortedResults = Object.entries(resultFrequency).sort((a, b) => {
+                const sumA = parseInt(a[0].split(' ')[0]);
+                const sumB = parseInt(b[0].split(' ')[0]);
+                return sumA - sumB;
+            });
+
+            const labels = sortedResults.map(item => item[0]);
+            const data = sortedResults.map(item => item[1]);
+
+            const maxFreq = Math.max(...data);
+            const minFreq = Math.min(...data);
+
+            resultsChart.data.labels = labels;
+            resultsChart.data.datasets[0].data = data;
+            resultsChart.data.datasets[0].backgroundColor = data.map(freq => 
+                freq === maxFreq ? 'rgba(255, 99, 132, 0.6)' :
+                freq === minFreq ? 'rgba(54, 162, 235, 0.6)' :
+                'rgba(75, 192, 192, 0.6)'
+            );
+            resultsChart.data.datasets[0].borderColor = data.map(freq => 
+                freq === maxFreq ? 'rgba(255, 99, 132, 1)' :
+                freq === minFreq ? 'rgba(54, 162, 235, 1)' :
+                'rgba(75, 192, 192, 1)'
+            );
+            resultsChart.update();
+        }
+
+        async function rollDice() {
+            try {
+                const response = await fetch('http://localhost:3030/roll');
+                const data = await response.json();
+
+                if (rollResults[rollIndex]) {
+                    // Remove old roll from frequency counts
+                    const oldRoll = rollResults[rollIndex];
+                    oldRoll.dice.forEach((die, index) => {
+                        dieFrequency[index][die - 1]--;
+                    });
+                    const oldResult = `${oldRoll.sum} (${oldRoll.big_small}${oldRoll.triple ? ', Triple' : ''})`;
+                    resultFrequency[oldResult]--;
+                    if (resultFrequency[oldResult] === 0) {
+                        delete resultFrequency[oldResult];
+                    }
+                }
+
+                // Add new roll to frequency counts
+                data.dice.forEach((die, index) => {
+                    dieFrequency[index][die - 1]++;
+                });
+                const result = `${data.sum} (${data.big_small}${data.triple ? ', Triple' : ''})`;
+                resultFrequency[result] = (resultFrequency[result] || 0) + 1;
+
+                rollResults[rollIndex] = data;
+                rollIndex = (rollIndex + 1) % 10000;
+                totalRolls++;
+
+                updateCounter++;
+                if (updateCounter % 10 === 0) {  // Update every 10 rolls
+                    updateAnalysis();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function updateAnalysis() {
+            totalRollsDiv.textContent = `Total Rolls: ${totalRolls}`;
+
+            for (let i = 0; i < 3; i++) {
+                updateDieTable(i + 1);
+                updateDieChart(dieCharts[i], dieFrequency[i]);
+            }
+
+            updateResultsChart();
+        }
+
+        function startOver() {
+            rollResults = new Array(10000).fill(null);
+            rollIndex = 0;
+            dieFrequency = [new Array(6).fill(0), new Array(6).fill(0), new Array(6).fill(0)];
+            resultFrequency = {};
+            totalRolls = 0;
+            updateCounter = 0;
+            updateAnalysis();
+        }
+
+        // Initialize the layout
+        for (let i = 1; i <= 3; i++) {
+            dieAnalysisDiv.appendChild(createDieAnalysisTable(i));
+            dieCharts.push(createDieChart(`dieChart${i}`, i));
+        }
+        resultsChart = createResultsChart();
+
+        toggleButton.addEventListener('click', () => {
+            isRolling = !isRolling;
+            if (isRolling) {
+                toggleButton.textContent = 'Stop Rolling';
+                toggleButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                toggleButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                rollInterval = setInterval(rollDice, 100); // Roll 10 times per second
+            } else {
+                toggleButton.textContent = 'Start Rolling';
+                toggleButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                toggleButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                clearInterval(rollInterval);
+            }
+        });
+
+        startOverButton.addEventListener('click', () => {
+            if (isRolling) {
+                toggleButton.click(); // Stop rolling if it's currently rolling
+            }
+            startOver();
+        });
+    </script>
+</body>
+</html>

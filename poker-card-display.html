@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Card Display</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f0f0; }
+        #card-container { display: flex; gap: 10px; margin-bottom: 20px; }
+        .card { width: 80px; height: 112px; background-color: white; border: 1px solid #ccc; border-radius: 5px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; }
+        .hearts, .diamonds { color: red; }
+        .clubs, .spades { color: black; }
+        button { margin: 10px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #summary-container { display: flex; justify-content: space-between; margin-top: 20px; }
+        #history, #card-frequency { width: 48%; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .card-value { font-weight: bold; }
+        #barChartContainer {
+            width: 100%;
+            margin-top: 20px;
+        }
+        #barChartTitle {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #barChart {
+            width: 100%;
+            height: 300px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            border-bottom: 2px solid #333;
+        }
+        .bar {
+            width: 8%;
+            background-color: rgba(75, 192, 192, 0.6);
+            border: 1px solid rgba(75, 192, 192, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        .bar-label {
+            position: absolute;
+            bottom: -55px;
+            font-size: 10px;
+            text-align: center;
+            width: 100%;
+            transform: rotate(-45deg);
+            transform-origin: left top;
+            white-space: nowrap;
+        }
+        .bar-value {
+            position: absolute;
+            top: -20px;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <button id="startBtn" onclick="startDrawing()">Start</button>
+    <button id="stopBtn" onclick="stopDrawing()" disabled>Stop</button>
+    <button onclick="startOver()">Start Over</button>
+    <div>Draws: <span id="drawCount">0</span></div>
+    <div id="card-container"></div>
+    <div id="summary-container">
+        <div id="history">
+            <h2>Draw Summary</h2>
+            <table id="summaryTable"></table>
+            <div id="barChartContainer">
+                <div id="barChartTitle">Hand Type Distribution</div>
+                <div id="barChart"></div>
+            </div>
+        </div>
+        <div id="card-frequency">
+            <h2>Card Frequency</h2>
+            <table id="cardFrequencyTable"></table>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        let drawInterval, drawCount = 0, updateCounter = 0;
+        const handSummary = {
+            'Royal Flush': 0, 'Straight Flush': 0, 'Four of a Kind': 0, 'Full House': 0,
+            'Flush': 0, 'Straight': 0, 'Three of a Kind': 0, 'Two Pair': 0, 'One Pair': 0, 'High Card': 0
+        };
+        const cardFrequency = {};
+        let barChart;
+
+        const suits = ['♥', '♦', '♣', '♠'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const cardOrder = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+        suits.forEach(suit => values.forEach(value => cardFrequency[value + suit] = 0));
+
+        function startDrawing() {
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            drawInterval = setInterval(drawCards, 100);
+        }
+
+        function stopDrawing() {
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            clearInterval(drawInterval);
+        }
+
+        function startOver() {
+            stopDrawing();
+            drawCount = 0;
+            updateCounter = 0;
+            Object.keys(handSummary).forEach(key => handSummary[key] = 0);
+            Object.keys(cardFrequency).forEach(key => cardFrequency[key] = 0);
+            updateDisplay();
+        }
+
+        function drawCards() {
+            fetch('http://localhost:3040/draw')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('card-container');
+                    container.innerHTML = data.cards.map(card => 
+                        `<div class="card ${card.suit}">
+                            ${card.value}<br>${getSuitSymbol(card.suit)}
+                        </div>`
+                    ).join('');
+                    
+                    data.cards.forEach(card => cardFrequency[card.value + getSuitSymbol(card.suit)]++);
+                    updateHandSummary(data.cards);
+                    drawCount++;
+
+                    if (++updateCounter % 10 === 0) {
+                        updateDisplay();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function getSuitSymbol(suit) {
+            return {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'}[suit];
+        }
+
+        function updateHandSummary(cards) {
+            handSummary[evaluateHand(cards)]++;
+        }
+
+        function evaluateHand(cards) {
+            const values = cards.map(card => card.value);
+            const suits = cards.map(card => card.suit);
+            
+            const isFlush = suits.every(suit => suit === suits[0]);
+            const isStraight = isConsecutive(values);
+            
+            if (isFlush && isStraight && values.includes('A') && values.includes('K')) return 'Royal Flush';
+            if (isFlush && isStraight) return 'Straight Flush';
+            if (hasFourOfAKind(values)) return 'Four of a Kind';
+            if (hasFullHouse(values)) return 'Full House';
+            if (isFlush) return 'Flush';
+            if (isStraight) return 'Straight';
+            if (hasThreeOfAKind(values)) return 'Three of a Kind';
+            if (hasTwoPair(values)) return 'Two Pair';
+            if (hasOnePair(values)) return 'One Pair';
+            return 'High Card';
+        }
+
+        function isConsecutive(values) {
+            const order = '23456789TJQKA';
+            const sortedValues = values.map(v => v === '10' ? 'T' : v).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+            for (let i = 0; i < sortedValues.length - 1; i++) {
+                if (order.indexOf(sortedValues[i + 1]) - order.indexOf(sortedValues[i]) !== 1) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function hasFourOfAKind(values) { return hasNOfAKind(values, 4); }
+        function hasFullHouse(values) { return hasNOfAKind(values, 3) && hasNOfAKind(values, 2); }
+        function hasThreeOfAKind(values) { return hasNOfAKind(values, 3); }
+        function hasTwoPair(values) { return Object.values(getCounts(values)).filter(count => count === 2).length === 2; }
+        function hasOnePair(values) { return hasNOfAKind(values, 2); }
+
+        function hasNOfAKind(values, n) {
+            return Object.values(getCounts(values)).includes(n);
+        }
+
+        function getCounts(values) {
+            return values.reduce((acc, val) => { acc[val] = (acc[val] || 0) + 1; return acc; }, {});
+        }
+
+        function updateDisplay() {
+            document.getElementById('drawCount').textContent = drawCount;
+            updateSummaryTable();
+            updateBarChart();
+            updateCardFrequencyTable();
+        }
+
+        function updateSummaryTable() {
+            const table = document.getElementById('summaryTable');
+            table.innerHTML = '<tr><th>Hand Type</th><th>Frequency</th><th>Percentage</th></tr>' +
+                Object.entries(handSummary).map(([handType, frequency]) => {
+                    const percentage = ((frequency / drawCount) * 100).toFixed(2);
+                    return `<tr><td>${handType}</td><td>${frequency}</td><td>${percentage}%</td></tr>`;
+                }).join('');
+        }
+
+        function updateBarChart() {
+            const barChart = document.getElementById('barChart');
+            const maxPercentage = Math.max(...Object.values(handSummary).map(freq => (freq / drawCount) * 100));
+            
+            barChart.innerHTML = Object.entries(handSummary).map(([handType, frequency]) => {
+                const percentage = (frequency / drawCount) * 100;
+                const height = (percentage / maxPercentage) * 100;
+                return `
+                    <div class="bar" style="height: ${height}%;">
+                        <span class="bar-value">${percentage.toFixed(2)}%</span>
+                        <span class="bar-label">${handType}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateCardFrequencyTable() {
+            const table = document.getElementById('cardFrequencyTable');
+            table.innerHTML = '<tr><th>Card</th><th>♥</th><th>♦</th><th>♣</th><th>♠</th><th>Total</th><th>Percentage</th></tr>' +
+                cardOrder.map(value => {
+                    let totalFrequency = 0;
+                    const cells = suits.map(suit => {
+                        const frequency = cardFrequency[value + suit];
+                        totalFrequency += frequency;
+                        return `<td class="${suit === '♥' || suit === '♦' ? 'hearts' : 'spades'}">${frequency}</td>`;
+                    }).join('');
+                    const percentage = ((totalFrequency / (drawCount * 5)) * 100).toFixed(2);
+                    return `<tr>
+                        <td><span class="card-value">${value}</span></td>
+                        ${cells}
+                        <td>${totalFrequency}</td>
+                        <td>${percentage}%</td>
+                    </tr>`;
+                }).join('');
+        }
+
+        // Initialize the display
+        updateDisplay();
+    </script>
+</body>
+</html>
