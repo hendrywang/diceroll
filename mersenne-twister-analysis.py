@@ -168,7 +168,7 @@ print(f"Generated seed: {seed}")
 
 rng = MersenneTwister(seed)
 
-num_samples = 3000000
+num_samples = 1000000
 num_bins = 52
 
 generated_numbers = [rng.randint(1, num_bins) for _ in range(num_samples)]
