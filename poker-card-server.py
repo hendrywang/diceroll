@@ -6,6 +6,7 @@ import hashlib
 import os
 import random
 import numpy as np
+from urllib.parse import urlparse, parse_qs
 
 class AdvancedRandomGenerator:
     def __init__(self):
@@ -102,8 +103,11 @@ class PokerCardHandler(BaseHTTPRequestHandler):
     values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
 
     def do_GET(self):
-        if self.path == '/draw':
-            num_cards = 5  # Number of cards to draw
+        parsed_path = urlparse(self.path)
+        if parsed_path.path == '/draw':
+            query_components = parse_qs(parsed_path.query)
+            num_cards = int(query_components.get('count', [5])[0])  # Default to 5 if not specified
+            
             card_indices = [self.mersenne_twister.randint(0, 51) for _ in range(num_cards)]
             
             cards = []

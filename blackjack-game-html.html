@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-area {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #banker {
+            border: 2px solid gold;
+            padding: 10px;
+            margin: 20px 0;
+            background-color: #f0f0f0;
+            width: 50%;
+            text-align: center;
+        }
+        #players {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+        .player {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            width: calc(25% - 20px);
+            box-sizing: border-box;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+        .player-busted, .player-lost {
+            background-color: #ffcccc;
+        }
+        .player-won {
+            background-color: #ccffcc;
+        }
+        .player-tie {
+            background-color: #ffffcc;
+        }
+        .hand {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .card {
+            border: 1px solid #000;
+            border-radius: 5px;
+            padding: 5px;
+            margin: 5px;
+            width: 70px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 28px;
+        }
+        .card-value {
+            font-size: 28px;
+        }
+        .card-suit {
+            font-size: 36px;
+        }
+        .red {
+            color: red;
+        }
+        .actions {
+            margin-top: 10px;
+        }
+        button {
+            margin: 5px;
+        }
+        .player-name, .player-score {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Blackjack Game</h1>
+    <div id="game-area">
+        <div id="banker"></div>
+        <div id="players"></div>
+    </div>
+    <button id="start-game">Start New Game</button>
+
+    <script>
+        class Player {
+            constructor(name) {
+                this.name = name;
+                this.hand = [];
+                this.score = 0;
+                this.isBust = false;
+                this.isStanding = false;
+                this.result = null;
+            }
+
+            hit(card) {
+                this.hand.push(card);
+                this.calculateScore();
+            }
+
+            calculateScore() {
+                this.score = 0;
+                let aceCount = 0;
+                for (let card of this.hand) {
+                    if (['J', 'Q', 'K'].includes(card.value)) {
+                        this.score += 10;
+                    } else if (card.value === 'A') {
+                        aceCount++;
+                    } else {
+                        this.score += parseInt(card.value);
+                    }
+                }
+                for (let i = 0; i < aceCount; i++) {
+                    if (this.score + 11 <= 21) {
+                        this.score += 11;
+                    } else {
+                        this.score += 1;
+                    }
+                }
+                if (this.score > 21) {
+                    this.isBust = true;
+                    this.result = 'Bust';
+                }
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.players = Array.from({length: 8}, (_, i) => new Player(`Player ${i + 1}`));
+                this.banker = new Player('Banker');
+                this.currentPlayerIndex = 0;
+                this.gameEnded = false;
+            }
+
+            async startGame() {
+                this.gameEnded = false;
+                this.currentPlayerIndex = 0;
+                this.players.forEach(player => {
+                    player.hand = [];
+                    player.score = 0;
+                    player.isBust = false;
+                    player.isStanding = false;
+                    player.result = null;
+                });
+                this.banker.hand = [];
+                this.banker.score = 0;
+                this.banker.isBust = false;
+
+                for (let i = 0; i < 2; i++) {
+                    for (let player of this.players) {
+                        await this.dealCard(player);
+                    }
+                    await this.dealCard(this.banker);
+                }
+                this.renderGame();
+            }
+
+            async dealCard(player) {
+                try {
+                    const response = await fetch('http://localhost:3040/draw');
+                    const data = await response.json();
+                    player.hit(data.cards[0]);
+                } catch (error) {
+                    console.error('Error drawing card:', error);
+                }
+            }
+
+            async playerAction(action) {
+                const currentPlayer = this.players[this.currentPlayerIndex];
+                if (action === 'hit') {
+                    await this.dealCard(currentPlayer);
+                    if (currentPlayer.isBust) {
+                        this.nextPlayer();
+                    }
+                } else if (action === 'stand') {
+                    currentPlayer.isStanding = true;
+                    this.nextPlayer();
+                }
+                this.renderGame();
+            }
+
+            nextPlayer() {
+                this.currentPlayerIndex++;
+                if (this.currentPlayerIndex >= this.players.length) {
+                    this.bankerPlay();
+                }
+            }
+
+            async bankerPlay() {
+                while (this.banker.score < 17) {
+                    await this.dealCard(this.banker);
+                }
+                this.determineWinners();
+            }
+
+            determineWinners() {
+                for (let player of this.players) {
+                    if (!player.isBust) {
+                        if (this.banker.isBust || player.score > this.banker.score) {
+                            player.result = 'Win';
+                        } else if (player.score === this.banker.score) {
+                            player.result = 'Tie';
+                        } else {
+                            player.result = 'Lose';
+                        }
+                    }
+                }
+                this.gameEnded = true;
+                this.renderGame();
+            }
+
+            renderGame() {
+                const bankerArea = document.getElementById('banker');
+                const playersArea = document.getElementById('players');
+                bankerArea.innerHTML = '';
+                playersArea.innerHTML = '';
+
+                bankerArea.appendChild(this.renderPlayerOrBanker(this.banker, true));
+
+                for (let player of this.players) {
+                    playersArea.appendChild(this.renderPlayerOrBanker(player, false));
+                }
+            }
+
+            renderPlayerOrBanker(player, isBanker) {
+                const div = document.createElement('div');
+                div.className = isBanker ? 'banker' : 'player';
+                
+                // Apply color-coding based on player state
+                if (!isBanker) {
+                    if (player.isBust) {
+                        div.classList.add('player-busted');
+                    } else if (this.gameEnded) {
+                        switch(player.result) {
+                            case 'Win':
+                                div.classList.add('player-won');
+                                break;
+                            case 'Tie':
+                                div.classList.add('player-tie');
+                                break;
+                            case 'Lose':
+                                div.classList.add('player-lost');
+                                break;
+                        }
+                    }
+                }
+
+                let scoreDisplay = player.isBust ? 'Bust' : player.score;
+                if (isBanker && !this.gameEnded) {
+                    scoreDisplay = '?';
+                }
+                div.innerHTML = `
+                    <h2 class="player-name">${player.name}</h2>
+                    <p class="player-score">Score: ${scoreDisplay}</p>
+                    <div class="hand">
+                        ${player.hand.map((card, index) => 
+                            isBanker && index === 1 && !this.gameEnded
+                                ? this.renderHiddenCard() 
+                                : this.renderCard(card)
+                        ).join('')}
+                    </div>
+                    ${player.result && !isBanker ? `<p>Result: ${player.result}</p>` : ''}
+                    ${this.renderActions(player)}
+                `;
+                return div;
+            }
+
+            renderCard(card) {
+                const suitEmoji = this.getSuitEmoji(card.suit);
+                const isRed = ['hearts', 'diamonds'].includes(card.suit);
+                return `
+                    <div class="card ${isRed ? 'red' : ''}">
+                        <div class="card-value">${card.value}</div>
+                        <div class="card-suit">${suitEmoji}</div>
+                    </div>
+                `;
+            }
+
+            getSuitEmoji(suit) {
+                switch(suit) {
+                    case 'hearts': return '♥️';
+                    case 'diamonds': return '♦️';
+                    case 'clubs': return '♣️';
+                    case 'spades': return '♠️';
+                    default: return '';
+                }
+            }
+
+            renderHiddenCard() {
+                return '<div class="card"><div class="card-value">[Hidden]</div></div>';
+            }
+
+            renderActions(player) {
+                if (this.gameEnded || player !== this.players[this.currentPlayerIndex] || player.isStanding || player.isBust) {
+                    return '';
+                }
+                return `
+                    <div class="actions">
+                        <button onclick="game.playerAction('hit')">Hit</button>
+                        <button onclick="game.playerAction('stand')">Stand</button>
+                    </div>
+                `;
+            }
+        }
+
+        let game;
+
+        document.getElementById('start-game').addEventListener('click', () => {
+            game = new Game();
+            game.startGame();
+        });
+    </script>
+</body>
+</html>
