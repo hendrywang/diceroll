@@ -1,7 +1,39 @@
-import time
-import os
+import secrets
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
+import time
+import hashlib
+import os
+import random
+import numpy as np
+
+class AdvancedRandomGenerator:
+    def __init__(self):
+        self.numpy_rng = np.random.RandomState()
+        self.reseed()
+
+    def reseed(self):
+        seed_sources = [
+            int.from_bytes(os.urandom(4), 'big'),
+            int(time.time() * 1000000),
+            int.from_bytes(secrets.token_bytes(4), 'big'),
+            hash(str(self.numpy_rng.get_state()))
+        ]
+        seed = hashlib.sha512(str(seed_sources).encode()).digest()
+        seed_int = int.from_bytes(seed[:4], 'big')
+        self.numpy_rng.seed(seed_int)
+
+    def generate_numbers(self, min_value, max_value, count):
+        extra = max(100, count)
+        numbers = self.numpy_rng.randint(min_value, max_value + 1, size=count + extra)
+        
+        for i in range(len(numbers) - 1, 0, -1):
+            j = self.numpy_rng.randint(0, i + 1)
+            numbers[i], numbers[j] = numbers[j], numbers[i]
+        
+        result = numbers[:count].tolist()
+        self.reseed()
+        return result
 
 class MersenneTwister:
     def __init__(self, seed=None):
@@ -19,7 +51,7 @@ class MersenneTwister:
         self.upper_mask = ~self.lower_mask
 
         if seed is None:
-            seed = int(time.time_ns())
+            seed = int(time.time())
         self.seed_mt(seed)
 
     def seed_mt(self, seed):
@@ -63,18 +95,16 @@ class MersenneTwister:
             if value < range_size:
                 return a + value
 
-def generate_seed():
-    return int.from_bytes(time.time_ns().to_bytes(8, 'little') + os.urandom(8), 'little')
-
 class PokerCardHandler(BaseHTTPRequestHandler):
-    random_generator = MersenneTwister(generate_seed())
+    advanced_rng = AdvancedRandomGenerator()
+    mersenne_twister = MersenneTwister(advanced_rng.generate_numbers(0, 2**32 - 1, 1)[0])
     suits = ['hearts', 'diamonds', 'clubs', 'spades']
     values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
 
     def do_GET(self):
         if self.path == '/draw':
             num_cards = 5  # Number of cards to draw
-            card_indices = [self.random_generator.randint(0, 51) for _ in range(num_cards)]
+            card_indices = [self.mersenne_twister.randint(0, 51) for _ in range(num_cards)]
             
             cards = []
             for index in card_indices:
