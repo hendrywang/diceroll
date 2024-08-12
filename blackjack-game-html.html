@@ -88,10 +88,14 @@
         .player-name, .player-score {
             margin: 5px 0;
         }
+        .player-blackjack {
+            background-color: #ffd700;
+            border: 2px solid #ff8c00;
+        }
     </style>
 </head>
 <body>
-    <h1>Blackjack Game</h1>
+    <h1>Advanced Blackjack Game</h1>
     <div id="game-area">
         <div id="banker"></div>
         <div id="players"></div>
@@ -107,6 +111,7 @@
                 this.isBust = false;
                 this.isStanding = false;
                 this.result = null;
+                this.hasBlackjack = false;
             }
 
             hit(card) {
@@ -136,6 +141,9 @@
                 if (this.score > 21) {
                     this.isBust = true;
                     this.result = 'Bust';
+                } else if (this.score === 21 && this.hand.length === 2) {
+                    this.hasBlackjack = true;
+                    this.result = 'Blackjack';
                 }
             }
         }
@@ -157,10 +165,12 @@
                     player.isBust = false;
                     player.isStanding = false;
                     player.result = null;
+                    player.hasBlackjack = false;
                 });
                 this.banker.hand = [];
                 this.banker.score = 0;
                 this.banker.isBust = false;
+                this.banker.hasBlackjack = false;
 
                 for (let i = 0; i < 2; i++) {
                     for (let player of this.players) {
@@ -168,7 +178,25 @@
                     }
                     await this.dealCard(this.banker);
                 }
+                this.checkForBlackjacks();
                 this.renderGame();
+            }
+
+            checkForBlackjacks() {
+                let allBlackjackOrBust = true;
+                for (let player of this.players) {
+                    if (player.hasBlackjack) {
+                        player.result = 'Blackjack';
+                        player.isStanding = true;
+                    } else if (!player.isBust) {
+                        allBlackjackOrBust = false;
+                    }
+                }
+                if (this.banker.hasBlackjack) {
+                    this.endGame();
+                } else if (allBlackjackOrBust) {
+                    this.bankerPlay();
+                }
             }
 
             async dealCard(player) {
@@ -185,10 +213,17 @@
                 const currentPlayer = this.players[this.currentPlayerIndex];
                 if (action === 'hit') {
                     await this.dealCard(currentPlayer);
-                    if (currentPlayer.isBust) {
+                    if (currentPlayer.score === 21) {
+                        currentPlayer.result = 'Win';
+                        this.nextPlayer();
+                    } else if (currentPlayer.isBust) {
                         this.nextPlayer();
                     }
                 } else if (action === 'stand') {
+                    currentPlayer.isStanding = true;
+                    this.nextPlayer();
+                } else if (action === 'double') {
+                    await this.dealCard(currentPlayer);
                     currentPlayer.isStanding = true;
                     this.nextPlayer();
                 }
@@ -196,23 +231,30 @@
             }
 
             nextPlayer() {
-                this.currentPlayerIndex++;
-                if (this.currentPlayerIndex >= this.players.length) {
-                    this.bankerPlay();
-                }
+                do {
+                    this.currentPlayerIndex++;
+                    if (this.currentPlayerIndex >= this.players.length) {
+                        this.bankerPlay();
+                        return;
+                    }
+                } while (this.players[this.currentPlayerIndex].isStanding || 
+                         this.players[this.currentPlayerIndex].isBust ||
+                         this.players[this.currentPlayerIndex].hasBlackjack);
             }
 
             async bankerPlay() {
                 while (this.banker.score < 17) {
                     await this.dealCard(this.banker);
                 }
-                this.determineWinners();
+                this.endGame();
             }
 
-            determineWinners() {
+            endGame() {
                 for (let player of this.players) {
-                    if (!player.isBust) {
-                        if (this.banker.isBust || player.score > this.banker.score) {
+                    if (!player.isBust && !player.hasBlackjack) {
+                        if (this.banker.isBust) {
+                            player.result = 'Win';
+                        } else if (player.score > this.banker.score) {
                             player.result = 'Win';
                         } else if (player.score === this.banker.score) {
                             player.result = 'Tie';
@@ -242,9 +284,10 @@
                 const div = document.createElement('div');
                 div.className = isBanker ? 'banker' : 'player';
                 
-                // Apply color-coding based on player state
                 if (!isBanker) {
-                    if (player.isBust) {
+                    if (player.hasBlackjack) {
+                        div.classList.add('player-blackjack');
+                    } else if (player.isBust) {
                         div.classList.add('player-busted');
                     } else if (this.gameEnded) {
                         switch(player.result) {
@@ -275,7 +318,7 @@
                                 : this.renderCard(card)
                         ).join('')}
                     </div>
-                    ${player.result && !isBanker ? `<p>Result: ${player.result}</p>` : ''}
+                    ${player.result ? `<p>Result: ${player.result}</p>` : ''}
                     ${this.renderActions(player)}
                 `;
                 return div;
@@ -307,13 +350,14 @@
             }
 
             renderActions(player) {
-                if (this.gameEnded || player !== this.players[this.currentPlayerIndex] || player.isStanding || player.isBust) {
+                if (this.gameEnded || player !== this.players[this.currentPlayerIndex] || player.isStanding || player.isBust || player.hasBlackjack) {
                     return '';
                 }
                 return `
                     <div class="actions">
                         <button onclick="game.playerAction('hit')">Hit</button>
                         <button onclick="game.playerAction('stand')">Stand</button>
+                        ${player.hand.length === 2 ? `<button onclick="game.playerAction('double')">Double</button>` : ''}
                     </div>
                 `;
             }
