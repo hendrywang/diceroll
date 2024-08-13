@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Blackjack Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Advanced Blackjack Game</h1>
+    <div id="game-area">
+        <div id="banker"></div>
+        <div id="players"></div>
+    </div>
+    <button id="start-game">Start New Game</button>
+
+    <script src="player.js"></script>
+    <script src="game.js"></script>
+    <script src="ui.js"></script>
+    <script>
+        let game;
+
+        document.getElementById('start-game').addEventListener('click', () => {
+            game = new Game();
+            game.startGame();
+        });
+    </script>
+</body>
+</html>

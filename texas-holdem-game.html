@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texas Hold'em (8 players)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #2c3e50;
+            color: white;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #table {
+            width: 800px;
+            height: 400px;
+            background-color: #27ae60;
+            border-radius: 200px;
+            position: relative;
+            margin: 20px auto;
+        }
+        .player {
+            position: absolute;
+            width: 100px;
+            height: 60px;
+            background-color: #3498db;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #community-cards {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 10px;
+        }
+        .card {
+            width: 50px;
+            height: 70px;
+            background-color: white;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: black;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Texas Hold'em (8 players)</h1>
+        <div id="table">
+            <div id="community-cards"></div>
+        </div>
+        <button id="deal-button">Deal Cards</button>
+    </div>
+
+    <script>
+        const playerPositions = [
+            { top: '0%', left: '50%' },
+            { top: '15%', left: '85%' },
+            { top: '50%', left: '100%' },
+            { top: '85%', left: '85%' },
+            { top: '100%', left: '50%' },
+            { top: '85%', left: '15%' },
+            { top: '50%', left: '0%' },
+            { top: '15%', left: '15%' }
+        ];
+
+        function createPlayers() {
+            const table = document.getElementById('table');
+            for (let i = 0; i < 8; i++) {
+                const player = document.createElement('div');
+                player.className = 'player';
+                player.id = `player${i + 1}`;
+                player.textContent = `Player ${i + 1}`;
+                player.style.top = playerPositions[i].top;
+                player.style.left = playerPositions[i].left;
+                player.style.transform = 'translate(-50%, -50%)';
+                table.appendChild(player);
+            }
+        }
+
+        async function dealCards() {
+            try {
+                // Deal two cards to each player
+                for (let i = 1; i <= 8; i++) {
+                    const response = await fetch('http://localhost:3040/draw?count=2');
+                    const data = await response.json();
+                    const player = document.getElementById(`player${i}`);
+                    player.innerHTML = `Player ${i}<br>${data.cards[0].value}${getSuitSymbol(data.cards[0].suit)}, ${data.cards[1].value}${getSuitSymbol(data.cards[1].suit)}`;
+                }
+
+                // Deal community cards
+                const communityCardsResponse = await fetch('http://localhost:3040/draw?count=5');
+                const communityCardsData = await communityCardsResponse.json();
+                const communityCardsContainer = document.getElementById('community-cards');
+                communityCardsContainer.innerHTML = '';
+                communityCardsData.cards.forEach(card => {
+                    const cardElement = document.createElement('div');
+                    cardElement.className = 'card';
+                    cardElement.textContent = `${card.value}${getSuitSymbol(card.suit)}`;
+                    communityCardsContainer.appendChild(cardElement);
+                });
+            } catch (error) {
+                console.error('Error dealing cards:', error);
+                alert('Error dealing cards. Make sure the server is running on port 3040.');
+            }
+        }
+
+        function getSuitSymbol(suit) {
+            switch (suit) {
+                case 'hearts': return '♥';
+                case 'diamonds': return '♦';
+                case 'clubs': return '♣';
+                case 'spades': return '♠';
+                default: return '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createPlayers();
+            document.getElementById('deal-button').addEventListener('click', dealCards);
+        });
+    </script>
+</body>
+</html>

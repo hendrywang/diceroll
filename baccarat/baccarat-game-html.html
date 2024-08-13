@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baccarat Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            padding: 20px;
+        }
+        .game-container {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .hand {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .card {
+            width: 80px;
+            height: 120px;
+            background-color: #fff;
+            border: 1px solid #000;
+            border-radius: 5px;
+            margin: 0 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            transition: background-color 0.3s ease;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .betting-area {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .bet-option {
+            text-align: center;
+            display: flex;
+            align-items: center;
+        }
+        .bet-option button {
+            width: 30px;
+            height: 30px;
+            font-size: 20px;
+            padding: 0;
+            margin: 0 5px;
+        }
+        .bet-option input {
+            width: 60px;
+            text-align: center;
+        }
+        #gameHistory {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #gameHistory td {
+            border: 1px solid #ddd;
+            width: 20px;
+            height: 20px;
+        }
+        #balance {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        #result {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Baccarat</h1>
+        <div>
+            <h2>Banker Hand: <span id="bankerScore">0</span></h2>
+            <div id="bankerHand" class="hand"></div>
+        </div>
+        <div>
+            <h2>Player Hand: <span id="playerScore">0</span></h2>
+            <div id="playerHand" class="hand"></div>
+        </div>
+        <div class="betting-area">
+            <div class="bet-option">
+                <h3>Banker</h3>
+                <button class="decrease-bet">-</button>
+                <input type="number" id="bankerBet" min="0" value="0" readonly>
+                <button class="increase-bet">+</button>
+            </div>
+            <div class="bet-option">
+                <h3>Player</h3>
+                <button class="decrease-bet">-</button>
+                <input type="number" id="playerBet" min="0" value="0" readonly>
+                <button class="increase-bet">+</button>
+            </div>
+            <div class="bet-option">
+                <h3>Tie</h3>
+                <button class="decrease-bet">-</button>
+                <input type="number" id="tieBet" min="0" value="0" readonly>
+                <button class="increase-bet">+</button>
+            </div>
+        </div>
+        <div id="balance">Balance: $1000</div>
+        <div id="result"></div>
+        <div class="controls">
+            <button id="dealButton">Deal</button>
+            <button id="resetButton">Reset</button>
+        </div>
+    </div>
+    
+    <h2>Game History</h2>
+    <table id="gameHistory">
+        <tbody>
+            <!-- 8 rows, 40 columns -->
+            <!-- rows will be filled dynamically -->
+        </tbody>
+    </table>
+
+    <script>
+        const playerHand = document.getElementById('playerHand');
+        const bankerHand = document.getElementById('bankerHand');
+        const playerScore = document.getElementById('playerScore');
+        const bankerScore = document.getElementById('bankerScore');
+        const result = document.getElementById('result');
+        const dealButton = document.getElementById('dealButton');
+        const resetButton = document.getElementById('resetButton');
+        const balanceElement = document.getElementById('balance');
+        const bankerBetInput = document.getElementById('bankerBet');
+        const playerBetInput = document.getElementById('playerBet');
+        const tieBetInput = document.getElementById('tieBet');
+        const gameHistoryBody = document.querySelector('#gameHistory tbody');
+
+        let balance = 1000;
+        let gameCount = 0;
+        let currentColumn = 0;
+
+        const suitEmojis = {
+            'hearts': '❤️',
+            'diamonds': '♦️',
+            'clubs': '♣️',
+            'spades': '♠️'
+        };
+
+        // Initialize game history table
+        for (let i = 0; i < 8; i++) {
+            const row = gameHistoryBody.insertRow();
+            for (let j = 0; j < 40; j++) {
+                row.insertCell();
+            }
+        }
+
+        async function fetchCards(count) {
+            const response = await fetch(`http://localhost:3040/draw?count=${count}`);
+            const data = await response.json();
+            return data.cards;
+        }
+
+        function calculateHandValue(hand) {
+            let value = 0;
+            for (const card of hand) {
+                if (['J', 'Q', 'K', '10'].includes(card.value)) {
+                    value += 0;
+                } else if (card.value === 'A') {
+                    value += 1;
+                } else {
+                    value += parseInt(card.value);
+                }
+            }
+            return value % 10;
+        }
+
+        function displayCard(card, container) {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card';
+            cardElement.textContent = `${card.value}${suitEmojis[card.suit]}`;
+            container.appendChild(cardElement);
+            return cardElement;
+        }
+
+        async function dealCards() {
+            if (!validateBets()) return;
+
+            playerHand.innerHTML = '';
+            bankerHand.innerHTML = '';
+            result.textContent = '';
+
+            const cards = await fetchCards(6);
+            const playerCards = cards.slice(0, 2);
+            const bankerCards = cards.slice(2, 4);
+
+            const playerCardElements = playerCards.map(card => displayCard(card, playerHand));
+            const bankerCardElements = bankerCards.map(card => displayCard(card, bankerHand));
+
+            let playerValue = calculateHandValue(playerCards);
+            let bankerValue = calculateHandValue(bankerCards);
+
+            playerScore.textContent = playerValue;
+            bankerScore.textContent = bankerValue;
+
+            if (playerValue >= 8 || bankerValue >= 8) {
+                // Natural win
+                determineWinner(playerValue, bankerValue, playerCardElements, bankerCardElements);
+            } else {
+                // Draw additional cards if necessary
+                if (playerValue <= 5) {
+                    const playerThirdCard = cards[4];
+                    const playerThirdCardElement = displayCard(playerThirdCard, playerHand);
+                    playerCardElements.push(playerThirdCardElement);
+                    playerValue = calculateHandValue([...playerCards, playerThirdCard]);
+                    playerScore.textContent = playerValue;
+
+                    if (bankerValue <= 2 || (bankerValue <= 5 && shouldBankerDraw(bankerValue, playerThirdCard.value))) {
+                        const bankerThirdCard = cards[5];
+                        const bankerThirdCardElement = displayCard(bankerThirdCard, bankerHand);
+                        bankerCardElements.push(bankerThirdCardElement);
+                        bankerValue = calculateHandValue([...bankerCards, bankerThirdCard]);
+                        bankerScore.textContent = bankerValue;
+                    }
+                } else if (bankerValue <= 5) {
+                    const bankerThirdCard = cards[5];
+                    const bankerThirdCardElement = displayCard(bankerThirdCard, bankerHand);
+                    bankerCardElements.push(bankerThirdCardElement);
+                    bankerValue = calculateHandValue([...bankerCards, bankerThirdCard]);
+                    bankerScore.textContent = bankerValue;
+                }
+
+                determineWinner(playerValue, bankerValue, playerCardElements, bankerCardElements);
+            }
+        }
+
+        function shouldBankerDraw(bankerValue, playerThirdCardValue) {
+            if (bankerValue <= 2) return true;
+            if (bankerValue === 3 && playerThirdCardValue !== '8') return true;
+            if (bankerValue === 4 && ['2', '3', '4', '5', '6', '7'].includes(playerThirdCardValue)) return true;
+            if (bankerValue === 5 && ['4', '5', '6', '7'].includes(playerThirdCardValue)) return true;
+            if (bankerValue === 6 && ['6', '7'].includes(playerThirdCardValue)) return true;
+            return false;
+        }
+
+        function determineWinner(playerValue, bankerValue, playerCardElements, bankerCardElements) {
+            let winningBet;
+            let resultText;
+            let resultColor;
+
+            if (playerValue > bankerValue) {
+                resultText = 'Player wins!';
+                winningBet = 'player';
+                resultColor = 'blue';
+                playerCardElements.forEach(card => card.style.backgroundColor = 'lightgreen');
+                bankerCardElements.forEach(card => card.style.backgroundColor = 'lightcoral');
+            } else if (bankerValue > playerValue) {
+                resultText = 'Banker wins!';
+                winningBet = 'banker';
+                resultColor = 'red';
+                bankerCardElements.forEach(card => card.style.backgroundColor = 'lightgreen');
+                playerCardElements.forEach(card => card.style.backgroundColor = 'lightcoral');
+            } else {
+                resultText = 'It\'s a tie!';
+                winningBet = 'tie';
+                resultColor = 'green';
+                playerCardElements.forEach(card => card.style.backgroundColor = 'yellow');
+                bankerCardElements.forEach(card => card.style.backgroundColor = 'yellow');
+            }
+
+            result.textContent = resultText;
+            updateBalance(winningBet);
+            updateGameHistory(resultColor);
+
+            setTimeout(() => {
+                playerCardElements.forEach(card => card.style.backgroundColor = '');
+                bankerCardElements.forEach(card => card.style.backgroundColor = '');
+            }, 2000);
+        }
+
+        function validateBets() {
+            const totalBet = parseInt(bankerBetInput.value) + parseInt(playerBetInput.value) + parseInt(tieBetInput.value);
+            if (totalBet > balance) {
+                alert('Total bet cannot exceed your balance!');
+                return false;
+            }
+            if (totalBet === 0) {
+                alert('Please place a bet before dealing!');
+                return false;
+            }
+            return true;
+        }
+
+        function updateBalance(winningBet) {
+            const bankerBet = parseInt(bankerBetInput.value);
+            const playerBet = parseInt(playerBetInput.value);
+            const tieBet = parseInt(tieBetInput.value);
+
+            balance -= (bankerBet + playerBet + tieBet);
+
+            if (winningBet === 'banker') {
+                balance += bankerBet * 1.95; // 5% commission
+            } else if (winningBet === 'player') {
+                balance += playerBet * 2;
+            } else if (winningBet === 'tie') {
+                balance += tieBet * 9;
+            }
+
+            balanceElement.textContent = `Balance: $${balance.toFixed(2)}`;
+        }
+
+        function updateGameHistory(resultColor) {
+            const row = gameCount % 8;
+            const cell = gameHistoryBody.rows[row].cells[currentColumn];
+            cell.style.backgroundColor = resultColor;
+            
+            gameCount++;
+            if (gameCount % 8 === 0) {
+                currentColumn++;
+                if (currentColumn >= 40) {
+                    currentColumn = 0;
+                }
+            }
+        }
+
+        function resetGame() {
+            playerHand.innerHTML = '';
+            bankerHand.innerHTML = '';
+            playerScore.textContent = '0';
+            bankerScore.textContent = '0';
+            result.textContent = '';
+            bankerBetInput.value = '0';
+            playerBetInput.value = '0';
+            tieBetInput.value = '0';
+        }
+
+        dealButton.addEventListener('click', dealCards);
+        resetButton.addEventListener('click', resetGame);
+
+        // Add event listeners for bet buttons
+        document.querySelectorAll('.increase-bet').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const input = e.target.previousElementSibling;
+                input.value = parseInt(input.value) + 10;
+            });
+        });
+
+        document.querySelectorAll('.decrease-bet').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const input = e.target.nextElementSibling;
+                input.value = Math.max(0, parseInt(input.value) - 10);
+            });
+        });
+    </script>
+</body>
+</html>

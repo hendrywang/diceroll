@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baccarat Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>Baccarat</h1>
+        <div class="hand-container">
+            <div class="hand-section">
+                <h2>Banker Hand: <span id="bankerScore">0</span></h2>
+                <div id="bankerHand" class="hand"></div>
+                <div class="bet-option">
+                    <h3>Banker Bet</h3>
+                    <div class="bet-controls">
+                        <button class="decrease-bet">-</button>
+                        <input type="number" id="bankerBet" min="0" value="0" readonly>
+                        <button class="increase-bet">+</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bet-option">
+                <h3>Tie Bet</h3>
+                <div class="bet-controls">
+                    <button class="decrease-bet">-</button>
+                    <input type="number" id="tieBet" min="0" value="0" readonly>
+                    <button class="increase-bet">+</button>
+                </div>
+            </div>
+            <div class="hand-section">
+                <h2>Player Hand: <span id="playerScore">0</span></h2>
+                <div id="playerHand" class="hand"></div>
+                <div class="bet-option">
+                    <h3>Player Bet</h3>
+                    <div class="bet-controls">
+                        <button class="decrease-bet">-</button>
+                        <input type="number" id="playerBet" min="0" value="0" readonly>
+                        <button class="increase-bet">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="balance">Balance: $1000</div>
+        <div id="result"></div>
+        <div class="controls">
+            <button id="dealButton">Deal</button>
+            <button id="resetButton">Reset</button>
+        </div>
+    </div>
+    
+    <h2>Game History</h2>
+    <table id="gameHistory">
+        <tbody>
+            <!-- 8 rows, 40 columns -->
+            <!-- rows will be filled dynamically -->
+        </tbody>
+    </table>
+
+    <script src="gameLogic.js"></script>
+    <script src="ui.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

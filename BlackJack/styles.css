@@ -1,0 +1,87 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+#game-area {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+#banker {
+    border: 2px solid gold;
+    padding: 10px;
+    margin: 20px 0;
+    background-color: #f0f0f0;
+    width: 50%;
+    text-align: center;
+}
+#players {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+}
+.player {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin: 10px;
+    width: calc(25% - 20px);
+    box-sizing: border-box;
+    text-align: center;
+    transition: background-color 0.3s ease;
+}
+.player-busted, .player-lost {
+    background-color: #ffcccc;
+}
+.player-won {
+    background-color: #ccffcc;
+}
+.player-tie {
+    background-color: #ffffcc;
+}
+.player-blackjack {
+    background-color: #ffd700;
+    border: 2px solid #ff8c00;
+}
+.hand {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.card {
+    border: 1px solid #000;
+    border-radius: 5px;
+    padding: 5px;
+    margin: 5px;
+    width: 70px;
+    height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 28px;
+}
+.card-value {
+    font-size: 28px;
+}
+.card-suit {
+    font-size: 36px;
+}
+.red {
+    color: red;
+}
+.actions {
+    margin-top: 10px;
+}
+button {
+    margin: 5px;
+}
+.player-name, .player-score, .player-balance, .player-bet {
+    margin: 5px 0;
+}
