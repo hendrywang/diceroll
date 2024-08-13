@@ -201,7 +201,7 @@
 
             async dealCard(player) {
                 try {
-                    const response = await fetch('http://localhost:3040/draw');
+                    const response = await fetch('http://127.0.0.1:3050/draw');
                     const data = await response.json();
                     player.hit(data.cards[0]);
                 } catch (error) {
