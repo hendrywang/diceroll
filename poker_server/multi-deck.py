@@ -45,8 +45,10 @@ class Card:
         return {"suit": self.suit, "value": self.value}
 
 class DeckManager:
+    MAX_DECKS = 8
+
     def __init__(self, num_decks):
-        self.num_decks = num_decks
+        self.num_decks = min(num_decks, self.MAX_DECKS)
         self.reset_decks()
 
     def reset_decks(self):
@@ -56,14 +58,14 @@ class DeckManager:
         self.shuffle()
 
     def shuffle(self):
-        for i in range(len(self.cards)):
-            j = secrets.randbelow(i + 1)
-            self.cards[i], self.cards[j] = self.cards[j], self.cards[i]
+        random.shuffle(self.cards)
 
     def draw_cards(self, num_cards):
+        if num_cards > len(self.cards):
+            self.reset_decks()
+        
         drawn_cards = self.cards[:num_cards]
-        self.cards = self.cards[num_cards:] + drawn_cards  # Move drawn cards to the end
-        self.shuffle()  # Reshuffle after each draw
+        self.cards = self.cards[num_cards:]
         return drawn_cards
 
     def cards_remaining(self):
@@ -112,6 +114,11 @@ class PokerCardHandler(BaseHTTPRequestHandler):
         query_components = parse_qs(parsed_path.query)
         num_decks = int(query_components.get('decks', [1])[0])  # Default to 1 if not specified
         
+        if num_decks > DeckManager.MAX_DECKS:
+            message = f'Maximum number of decks is {DeckManager.MAX_DECKS}. Using {DeckManager.MAX_DECKS} decks.'
+        else:
+            message = f'Deck reset successful. Using {num_decks} deck(s).'
+        
         self.initialize_deck_manager(num_decks)
         
         self.send_response(200)
@@ -119,7 +126,7 @@ class PokerCardHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
         response = {
-            'message': f'Deck reset successful. Using {num_decks} deck(s).',
+            'message': message,
             'cards_remaining': self.deck_manager.cards_remaining()
         }
         self.wfile.write(json.dumps(response).encode())
