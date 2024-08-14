@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Distribution Tester (Full Deck)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #chartContainer {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #startButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        input[type="number"] {
+            padding: 5px;
+            font-size: 16px;
+            margin-right: 10px;
+            width: 60px;
+        }
+        .hearts { color: red; }
+        .diamonds { color: red; }
+        .clubs { color: black; }
+        .spades { color: black; }
+    </style>
+</head>
+<body>
+    <h1>Card Distribution Tester (Full Deck)</h1>
+    <div id="chartContainer">
+        <canvas id="barChart"></canvas>
+    </div>
+    <div>
+        <label for="deckCount">Number of decks:</label>
+        <input type="number" id="deckCount" min="1" value="8" placeholder="Decks">
+        
+        <label for="cardCount">Number of cards to draw:</label>
+        <input type="number" id="cardCount" min="1" value="256" placeholder="Cards">
+        
+        <label for="loopCount">Number of loops:</label>
+        <input type="number" id="loopCount" min="1" value="1" placeholder="Loops">
+        
+        <button id="startButton">Start Test</button>
+    </div>
+    <div id="results"></div>
+
+    <script>
+        const serverUrl = 'http://localhost:3040';
+        const suitEmojis = {
+            'hearts': '♥️',
+            'diamonds': '♦️',
+            'clubs': '♣️',
+            'spades': '♠️'
+        };
+        const suitOrder = ['spades', 'hearts', 'clubs', 'diamonds'];
+        const valueOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        let cardCounts = {};
+        let chartInstance = null;
+
+        async function startTest() {
+            const loops = parseInt(document.getElementById('loopCount').value) || 1;
+            const decks = parseInt(document.getElementById('deckCount').value) || 8;
+            const cardsToDraw = parseInt(document.getElementById('cardCount').value) || 256;
+            initializeCardCounts(decks);
+            
+            for (let i = 0; i < loops; i++) {
+                await resetDeck(decks);
+                const cards = await drawCards(cardsToDraw);
+                updateResults(cards);
+                console.log(`Completed loop ${i + 1} of ${loops}`);
+            }
+            
+            updateChart();
+            displayResults();
+        }
+
+        function initializeCardCounts(decks) {
+            cardCounts = {};
+            suitOrder.forEach(suit => {
+                valueOrder.forEach(value => {
+                    const key = `${value}${suitEmojis[suit]}`;
+                    cardCounts[key] = 0;
+                });
+            });
+        }
+
+        async function resetDeck(numDecks) {
+            try {
+                const response = await fetch(`${serverUrl}/reset?decks=${numDecks}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log(data.message);
+            } catch (error) {
+                console.error('Error resetting deck:', error);
+            }
+        }
+
+        async function drawCards(count) {
+            try {
+                const response = await fetch(`${serverUrl}/draw?count=${count}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data.cards;
+            } catch (error) {
+                console.error('Error drawing cards:', error);
+                return [];
+            }
+        }
+
+        function updateResults(cards) {
+            cards.forEach(card => {
+                const key = `${card.value}${suitEmojis[card.suit]}`;
+                cardCounts[key]++;
+            });
+        }
+
+        function displayResults() {
+            const totalCards = Object.values(cardCounts).reduce((sum, count) => sum + count, 0);
+            
+            let tableHtml = '<table><tr><th>Queue</th><th>Card</th><th>Count</th><th>Percentage</th></tr>';
+            
+            let queue = 1;
+            suitOrder.forEach(suit => {
+                valueOrder.forEach(value => {
+                    const key = `${value}${suitEmojis[suit]}`;
+                    const count = cardCounts[key];
+                    const percentage = ((count / totalCards) * 100).toFixed(2);
+                    tableHtml += `<tr>
+                        <td>${queue}</td>
+                        <td class="${suit}">${key}</td>
+                        <td>${count}</td>
+                        <td>${percentage}%</td>
+                    </tr>`;
+                    queue++;
+                });
+            });
+            
+            tableHtml += '</table>';
+            document.getElementById('results').innerHTML = tableHtml;
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            const sortedCards = suitOrder.flatMap(suit => 
+                valueOrder.map(value => `${value}${suitEmojis[suit]}`)
+            );
+            
+            const labels = sortedCards;
+            const data = sortedCards.map(card => cardCounts[card]);
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Card Counts',
+                        data: data,
+                        backgroundColor: labels.map(label => {
+                            if (label.includes('♥️') || label.includes('♦️')) return 'rgba(255, 99, 132, 0.6)';
+                            return 'rgba(75, 192, 192, 0.6)';
+                        }),
+                        borderColor: labels.map(label => {
+                            if (label.includes('♥️') || label.includes('♦️')) return 'rgba(255, 99, 132, 1)';
+                            return 'rgba(75, 192, 192, 1)';
+                        }),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Card Distribution'
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('startButton').addEventListener('click', startTest);
+    </script>
+</body>
+</html>

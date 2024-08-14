@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Card Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            display: inline-block;
+            width: 60px;
+            height: 90px;
+            border: 1px solid #000;
+            border-radius: 5px;
+            margin: 5px;
+            text-align: center;
+            line-height: 90px;
+            font-size: 20px;
+        }
+        #cardContainer {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Poker Card Client</h1>
+    
+    <label for="numDecks">Number of Decks (1-8):</label>
+    <select id="numDecks">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+    </select>
+
+    <br><br>
+
+    <label for="numCards">Number of Cards to Draw (1-13):</label>
+    <input type="number" id="numCards" min="1" max="13" value="1">
+
+    <br><br>
+
+    <button onclick="drawCards()">Draw Cards</button>
+
+    <div id="cardContainer"></div>
+
+    <p id="remainingCards"></p>
+
+    <script>
+        const suits = {
+            'hearts': '♥️',
+            'diamonds': '♦️',
+            'clubs': '♣️',
+            'spades': '♠️'
+        };
+
+        const clientId = '12345678'; // Replace with your actual client ID
+        const secretKey = 'abcdefghijklmnop'; // Replace with your actual secret key
+        const gameId = '87654321'; // Replace with your actual game ID
+        const userId = '1234567890'; // Replace with your actual user ID
+        const matchId = '20230814abcdefghijklmnopqrstuvwx'; // Replace with your actual match ID
+
+        function drawCards() {
+            const numDecks = document.getElementById('numDecks').value;
+            const numCards = document.getElementById('numCards').value;
+
+            const url = `http://localhost:3040/draw?client_id=${clientId}&secret_key=${secretKey}&game_id=${gameId}&user_id=${userId}&match_id=${matchId}&num_decks=${numDecks}&num_cards=${numCards}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    displayCards(data.cards);
+                    updateRemainingCards(data.remaining_cards);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function displayCards(cards) {
+            const container = document.getElementById('cardContainer');
+            container.innerHTML = '';
+
+            cards.forEach(card => {
+                const [value, suit] = card;
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.textContent = `${value}${suits[suit]}`;
+                container.appendChild(cardElement);
+            });
+        }
+
+        function updateRemainingCards(remainingCards) {
+            const remainingCardsElement = document.getElementById('remainingCards');
+            remainingCardsElement.textContent = `Remaining cards: ${remainingCards}`;
+        }
+    </script>
+</body>
+</html>

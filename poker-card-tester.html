@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Poker Card Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .selection-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .selection-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .selected {
+            background-color: #007bff;
+            color: white;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        #cardsRemaining {
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        #drawnCards {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .card {
+            width: 60px;
+            height: 90px;
+            border: 1px solid #000;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: white;
+        }
+        .hearts, .diamonds {
+            color: red;
+        }
+        .clubs, .spades {
+            color: black;
+        }
+        #allCards {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 5px;
+        }
+        .mini-card {
+            width: 30px;
+            height: 45px;
+            border: 1px solid #000;
+            border-radius: 3px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+            background-color: white;
+        }
+        .drawn {
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Advanced Poker Card Game</h1>
+    
+    <div id="setup">
+        <h2>Select number of decks (1-8):</h2>
+        <div id="deckSelection" class="selection-grid"></div>
+        <button id="startGameButton">Start Game</button>
+    </div>
+    
+    <div id="gameControls" style="display: none;">
+        <h2>Select number of cards to draw (1-13):</h2>
+        <div id="cardSelection" class="selection-grid"></div>
+        <button id="drawButton">Draw Cards</button>
+        <button id="resetButton">Reset Game</button>
+    </div>
+    
+    <div id="cardsRemaining">Cards remaining: N/A</div>
+    
+    <div id="drawnCards"></div>
+    
+    <div id="allCards"></div>
+
+    <script>
+        const serverUrl = 'http://localhost:3040';
+        let selectedDecks = 1;
+        let selectedCards = 5;
+        let gameStarted = false;
+
+        const suitEmojis = {
+            'hearts': '♥️',
+            'diamonds': '♦️',
+            'clubs': '♣️',
+            'spades': '♠️'
+        };
+
+        function createSelectionGrid(containerId, count, selectedValue, onClickCallback) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            for (let i = 1; i <= count; i++) {
+                const box = document.createElement('div');
+                box.className = 'selection-box' + (i === selectedValue ? ' selected' : '');
+                box.textContent = i;
+                box.onclick = () => onClickCallback(i);
+                container.appendChild(box);
+            }
+        }
+
+        function updateDeckSelection(value) {
+            if (!gameStarted) {
+                selectedDecks = value;
+                createSelectionGrid('deckSelection', 8, selectedDecks, updateDeckSelection);
+            }
+        }
+
+        function updateCardSelection(value) {
+            selectedCards = value;
+            createSelectionGrid('cardSelection', 13, selectedCards, updateCardSelection);
+        }
+
+        function startGame() {
+            gameStarted = true;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('gameControls').style.display = 'block';
+            resetDeck();
+        }
+
+        async function drawCards() {
+            try {
+                const response = await fetch(`${serverUrl}/draw?count=${selectedCards}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                // Update the display with the drawn cards, even if fewer than requested
+                updateCardsRemaining(data.cards_remaining);
+                displayDrawnCards(data.cards);
+                updateAllCardsDisplay(data.cards);
+                
+                // Check if all cards have been drawn
+                if (data.cards_remaining === 0) {
+                    alert('All cards have been drawn. Please reset the game.');
+                    document.getElementById('drawButton').disabled = true;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Failed to draw cards: ${error.message}`);
+            }
+        }
+
+        async function resetDeck() {
+            try {
+                const response = await fetch(`${serverUrl}/reset?decks=${selectedDecks}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateCardsRemaining(data.cards_remaining);
+                document.getElementById('drawnCards').innerHTML = '';
+                initializeAllCardsDisplay();
+                document.getElementById('drawButton').disabled = false;
+                alert(data.message);
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Failed to reset deck: ${error.message}`);
+            }
+        }
+
+        function updateCardsRemaining(remaining) {
+            document.getElementById('cardsRemaining').textContent = `Cards remaining: ${remaining}`;
+        }
+
+        function displayDrawnCards(cards) {
+            const drawnCardsElement = document.getElementById('drawnCards');
+            drawnCardsElement.innerHTML = '<h2>Drawn Cards:</h2>';
+            if (cards.length === 0) {
+                drawnCardsElement.innerHTML += '<p>No cards were drawn. The deck is empty.</p>';
+            } else {
+                cards.forEach(card => {
+                    const cardElement = document.createElement('div');
+                    cardElement.className = `card ${card.suit}`;
+                    const suitEmoji = suitEmojis[card.suit];
+                    cardElement.textContent = `${card.value}${suitEmoji}`;
+                    drawnCardsElement.appendChild(cardElement);
+                });
+            }
+        }
+
+        function initializeAllCardsDisplay() {
+            const allCardsElement = document.getElementById('allCards');
+            allCardsElement.innerHTML = '';
+            const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+            const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            
+            for (let deck = 0; deck < selectedDecks; deck++) {
+                suits.forEach(suit => {
+                    values.forEach(value => {
+                        const miniCard = document.createElement('div');
+                        miniCard.className = `mini-card ${suit}`;
+                        miniCard.textContent = `${value}${suitEmojis[suit]}`;
+                        miniCard.id = `card-${deck}-${suit}-${value}`;
+                        allCardsElement.appendChild(miniCard);
+                    });
+                });
+            }
+        }
+
+        function updateAllCardsDisplay(drawnCards) {
+            drawnCards.forEach(card => {
+                for (let deck = 0; deck < selectedDecks; deck++) {
+                    const cardElement = document.getElementById(`card-${deck}-${card.suit}-${card.value}`);
+                    if (cardElement && !cardElement.classList.contains('drawn')) {
+                        cardElement.classList.add('drawn');
+                        break;
+                    }
+                }
+            });
+        }
+
+        function resetGame() {
+            gameStarted = false;
+            document.getElementById('setup').style.display = 'block';
+            document.getElementById('gameControls').style.display = 'none';
+            document.getElementById('drawnCards').innerHTML = '';
+            document.getElementById('allCards').innerHTML = '';
+            updateCardsRemaining('N/A');
+            createSelectionGrid('deckSelection', 8, selectedDecks, updateDeckSelection);
+            document.getElementById('drawButton').disabled = false;
+        }
+
+        document.getElementById('startGameButton').onclick = startGame;
+        document.getElementById('drawButton').onclick = drawCards;
+        document.getElementById('resetButton').onclick = resetGame;
+
+        // Initialize selection grids
+        createSelectionGrid('deckSelection', 8, selectedDecks, updateDeckSelection);
+        createSelectionGrid('cardSelection', 13, selectedCards, updateCardSelection);
+    </script>
+</body>
+</html>

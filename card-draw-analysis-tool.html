@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Draw Analysis Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Card Draw Analysis Tool</h1>
+    
+    <div>
+        <label for="numDecks">Number of Decks:</label>
+        <input type="number" id="numDecks" min="1" max="8" value="1">
+        
+        <label for="numDraws">Number of Draws:</label>
+        <input type="number" id="numDraws" min="1" value="1000">
+        
+        <label for="cardsPerDraw">Cards per Draw:</label>
+        <input type="number" id="cardsPerDraw" min="1" max="52" value="1">
+        
+        <button onclick="runAnalysis()">Run Analysis</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        const serverUrl = 'http://localhost:3040';
+        let cardCounts = {};
+        let drawHistory = [];
+
+        async function runAnalysis() {
+            const numDecks = parseInt(document.getElementById('numDecks').value);
+            const numDraws = parseInt(document.getElementById('numDraws').value);
+            const cardsPerDraw = parseInt(document.getElementById('cardsPerDraw').value);
+            
+            cardCounts = {};
+            drawHistory = [];
+
+            // Reset the deck
+            await fetch(`${serverUrl}/reset?decks=${numDecks}`);
+
+            for (let i = 0; i < numDraws; i++) {
+                const response = await fetch(`${serverUrl}/draw?count=${cardsPerDraw}`);
+                const data = await response.json();
+                
+                data.cards.forEach(card => {
+                    const cardKey = `${card.value} of ${card.suit}`;
+                    cardCounts[cardKey] = (cardCounts[cardKey] || 0) + 1;
+                });
+                
+                drawHistory.push(data.cards);
+
+                if (data.cards_remaining === 0) {
+                    await fetch(`${serverUrl}/reset?decks=${numDecks}`);
+                }
+            }
+
+            displayResults();
+        }
+
+        function displayResults() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Analysis Results</h2>';
+
+            // Uniformity analysis
+            const uniformityTable = createUniformityTable();
+            results.appendChild(uniformityTable);
+
+            // Periodicity analysis
+            const periodicityResult = analyzePeridocity();
+            results.appendChild(periodicityResult);
+        }
+
+        function createUniformityTable() {
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <tr>
+                    <th>Card</th>
+                    <th>Count</th>
+                    <th>Percentage</th>
+                    <th>Expected Percentage</th>
+                    <th>Deviation</th>
+                </tr>
+            `;
+
+            const totalCards = Object.values(cardCounts).reduce((a, b) => a + b, 0);
+            const numDecks = parseInt(document.getElementById('numDecks').value);
+            const expectedPercentage = 100 / (52 * numDecks);
+
+            for (const [card, count] of Object.entries(cardCounts)) {
+                const percentage = (count / totalCards) * 100;
+                const deviation = percentage - expectedPercentage;
+
+                const row = table.insertRow();
+                row.innerHTML = `
+                    <td>${card}</td>
+                    <td>${count}</td>
+                    <td>${percentage.toFixed(2)}%</td>
+                    <td>${expectedPercentage.toFixed(2)}%</td>
+                    <td>${deviation.toFixed(2)}%</td>
+                `;
+            }
+
+            return table;
+        }
+
+        function analyzePeridocity() {
+            const div = document.createElement('div');
+            div.innerHTML = '<h3>Periodicity Analysis</h3>';
+
+            const numDecks = parseInt(document.getElementById('numDecks').value);
+            const expectedPeriod = 52 * numDecks;
+            
+            let detectedPeriods = [];
+            for (let i = 0; i < drawHistory.length - expectedPeriod; i++) {
+                if (JSON.stringify(drawHistory[i]) === JSON.stringify(drawHistory[i + expectedPeriod])) {
+                    detectedPeriods.push(i);
+                }
+            }
+
+            if (detectedPeriods.length > 0) {
+                div.innerHTML += `<p>Potential periodicity detected at draws: ${detectedPeriods.join(', ')}</p>`;
+            } else {
+                div.innerHTML += '<p>No clear periodicity detected in the analyzed draws.</p>';
+            }
+
+            return div;
+        }
+    </script>
+</body>
+</html>
