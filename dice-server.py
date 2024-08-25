@@ -55,7 +55,7 @@ class DiceHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     PORT = 3344
-    IP = os.environ.get('IP', '173.242.118.128')  # Get IP from environment variable, default to '0.0.0.0'
+    IP = os.environ.get('IP', '0.0.0.0')  # Get IP from environment variable, default to '0.0.0.0'
     Handler = DiceHandler
     with socketserver.TCPServer((IP, PORT), Handler) as httpd:
         print(f"Server running on {IP}:{PORT}")
